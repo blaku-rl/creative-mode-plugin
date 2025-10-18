@@ -18,7 +18,7 @@ class CreativeModePlugin: public BakkesMod::Plugin::BakkesModPlugin, public Sett
 	std::map<std::string, SequenceVariableWrapper> mapVariables;
 	std::map<std::string, std::function<void()>> commands;
 	std::queue<std::tuple<std::string, Position>> objectsToLoad;
-	std::filesystem::path creativeModeFolder = gameWrapper->GetDataFolder() / "CreativeModeMaps";
+	std::filesystem::path creativeModeFolder = gameWrapper->GetDataFolder() / "CreativeMode";
 	std::string unusedList = "ObjectList_Used_All";
 	std::string objectListPrefix = "ObjectList_Used_";
 	std::string availListPrefix = "ObjectList_Available_";

@@ -31,8 +31,10 @@ void CreativeModePlugin::onLoad()
 	if (!std::filesystem::exists(creativeModeFolder))
 		std::filesystem::create_directories(creativeModeFolder);
 
-	if (!LoadSettings())
-		pluginSettings.SetDefaultValues(creativeModeFolder);
+	if (!LoadSettings()) {
+		pluginSettings.SetDefaultValues(creativeModeFolder / "Maps");
+		std::filesystem::create_directories(creativeModeFolder / "Maps");
+	}
 
 	loggingIsAllowed = pluginSettings.loggingAllowed;
 }
@@ -199,9 +201,12 @@ void CreativeModePlugin::SaveMap()
 {
 	auto author = GetKismetStringValue("MapCreatorInfo");
 	auto mapName = GetKismetStringValue("MapNameToSave");
+	std::erase_if(mapName, [](char c) {
+		return c == '\\' or c == '/' or c == ':' or c == '*' or c == '?' or c == '"' or c == '<' or c == '>' or c == '|' or c == '.';
+		});
+
 	if (author == "" or mapName == "") {
 		LOG("No author {} or mapname {} given", author, mapName);
-		//Author or Map name is empty
 		return;
 	}
 
