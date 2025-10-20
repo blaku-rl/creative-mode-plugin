@@ -37,6 +37,10 @@ void CreativeModePlugin::onLoad()
 	}
 
 	loggingIsAllowed = pluginSettings.loggingAllowed;
+
+	auto sequence = gameWrapper->GetMainSequence();
+	if (sequence.memory_address == NULL) return;
+	sequence.ActivateRemoteEvents("PluginLoaded");
 }
 
 void CreativeModePlugin::OnMapLoad(std::string eventName) 
