@@ -38,8 +38,10 @@ void CreativeModePlugin::onLoad()
 
 	loggingIsAllowed = pluginSettings.loggingAllowed;
 
+	OnMapLoad("");
+	if (!gameWrapper->GetGameEventAsServer()) { return; }
 	auto sequence = gameWrapper->GetMainSequence();
-	if (sequence.memory_address == NULL) return;
+	if (sequence.memory_address == NULL) { return; }
 	sequence.ActivateRemoteEvents("PluginLoaded");
 }
 
@@ -170,15 +172,63 @@ void CreativeModePlugin::LoadMap()
 		return;
 	}
 
-	std::ifstream dataFile(std::filesystem::path(pluginSettings.mapsFolder) / (mapName + fileExtension));
+	std::filesystem::path fileLoc = std::filesystem::path(pluginSettings.mapsFolder) / (mapName + fileExtension);
+	if (!std::filesystem::exists(fileLoc)) {
+		LOG("No file found at {}", fileLoc.string());
+		return;
+	}
+
+	std::ifstream dataFile(fileLoc);
 	if (dataFile.is_open()) {
 		std::string line;
-		//author
-		std::getline(dataFile, line);
 		//version
 		std::getline(dataFile, line);
+		//author
+		std::getline(dataFile, line);
+
+		//object lists
 		std::string curObjList = "";
+		bool objectListsStarted = false;
 		while (std::getline(dataFile, line)) {
+			if (line.starts_with("-") and !objectListsStarted) {
+				auto splitLoc = line.find(' ');
+				if (splitLoc == std::string::npos) {
+					LOG("No space found in the line {}", line);
+					continue;
+				}
+				auto nameVar = line.substr(0, splitLoc);
+				auto varValue = line.substr(splitLoc + 1);
+
+				auto varWrapper = mapVariables.find(nameVar);
+				if (varWrapper == mapVariables.end()) {
+					LOG("Couldn't find variable {} in map", nameVar);
+					continue;
+				}
+
+				auto& var = varWrapper->second;
+				if (var.IsString()) {
+					LOG("Loading {} var as a string with value {}", nameVar, varValue);
+					var.SetString(varValue);
+				}
+				else if (var.IsBool()) {
+					LOG("Loading {} var as a bool with value {}", nameVar, std::to_string(varValue == "true" || varValue == "1"));
+					var.SetBool(varValue == "true" || varValue == "1");
+				}
+				else if (var.IsInt()) {
+					LOG("Loading {} var as a int with value {}", nameVar, varValue);
+					var.SetInt(std::stoi(varValue));
+				}
+				else if (var.IsFloat()) {
+					LOG("Loading {} var as a float with value {}", nameVar, varValue);
+					var.SetFloat(std::stof(varValue));
+				}
+				else {
+					LOG("{} is not a string, int, bool, or float", nameVar);
+				}
+					
+				continue;
+			}
+
 			if (line.find(' ') != std::string::npos) {
 				auto curObj = Position(line);
 				LOG("Adding obj to q {} {}", curObjList, curObj.GetDebugString());
@@ -186,6 +236,7 @@ void CreativeModePlugin::LoadMap()
 				continue;
 			}
 			curObjList = line;
+			objectListsStarted = true;
 		}
 	}
 	dataFile.close();
@@ -203,8 +254,8 @@ void CreativeModePlugin::LoadMap()
 
 void CreativeModePlugin::SaveMap()
 {
-	auto author = GetKismetStringValue("MapCreatorInfo");
-	auto mapName = GetKismetStringValue("MapNameToSave");
+	auto author = GetKismetStringValue(authorNameTag);
+	auto mapName = GetKismetStringValue(mapNameTag);
 	std::erase_if(mapName, [](char c) {
 		return c == '\\' or c == '/' or c == ':' or c == '*' or c == '?' or c == '"' or c == '<' or c == '>' or c == '|' or c == '.';
 		});
@@ -221,11 +272,46 @@ void CreativeModePlugin::SaveMap()
 
 	std::ofstream mapFile(std::filesystem::path(pluginSettings.mapsFolder) / (mapName + fileExtension));
 	if (mapFile.is_open()) {
-		mapFile << author << "\n";
-		mapFile << "1" << "\n";
-		for (auto& [varName, varValue] : mapVariables) {
-			if (!varValue.IsObjectList() or varName.rfind(objectListPrefix, 0) != 0 or varName == unusedList) continue;
+		mapFile << pluginVersionTag << " 3\n";
+		mapFile << authorNameTag << " " << author << "\n";
 
+		std::vector<std::pair<std::string, SequenceVariableWrapper>> extraVariables = {};
+		std::vector<std::pair<std::string, SequenceVariableWrapper>> mapObjects = {};
+
+		for (auto& [varName, varValue] : mapVariables) {
+			if ((varValue.IsBool() or varValue.IsFloat() or varValue.IsInt() or varValue.IsString()) and varName.starts_with("-") and varName != authorNameTag and varName != mapNameTag) {
+				extraVariables.push_back(std::make_pair(varName, varValue));
+				continue;
+			}
+
+			if (varValue.IsObjectList() and varName.rfind(objectListPrefix, 0) == 0 and varName != unusedList) {
+				mapObjects.push_back(std::make_pair(varName, varValue));
+			}
+		}
+
+		for (auto& [varName, varValue] : extraVariables) {
+			mapFile << varName << " ";
+			if (varValue.IsString()) {
+				LOG("Saving {} as a string with value {}", varName, varValue.GetString());
+				mapFile << varValue.GetString();
+			}
+			else if (varValue.IsInt()) {
+				LOG("Saving {} as a int with value {}", varName, std::to_string(varValue.GetInt()));
+				mapFile << std::to_string(varValue.GetInt());
+			}
+			else if (varValue.IsBool()) {
+				LOG("Saving {} as a bool with value {}", varName, (varValue.GetBool() ? "true" : "false"));
+				mapFile << (varValue.GetBool() ? "true" : "false");
+			}
+			else if (varValue.IsFloat()) {
+				LOG("Saving {} as a float with value {}", varName, std::to_string(varValue.GetFloat()));
+				mapFile << std::to_string(varValue.GetFloat());
+			}
+
+			mapFile << "\n";
+		}
+
+		for (auto& [varName, varValue] : mapObjects) {
 			auto curObjList = varValue.GetObjectList();
 			std::string parsedName = varName.substr(objectListPrefix.length(), std::string::npos);
 

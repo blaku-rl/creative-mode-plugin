@@ -9,4 +9,7 @@ struct CreativeModeFile {
 
 	CreativeModeFile(const std::filesystem::directory_entry& mapFile);
 	std::string GetMapString() const;
+
+private:
+	void GetAuthorName(const std::filesystem::directory_entry& mapEntry);
 };

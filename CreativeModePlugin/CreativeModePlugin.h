@@ -25,6 +25,9 @@ class CreativeModePlugin: public BakkesMod::Plugin::BakkesModPlugin, public Sett
 	std::string fileExtension = ".data";
 	std::filesystem::path settingsFile = creativeModeFolder / "Settings.json";
 	Settings pluginSettings;
+	std::string pluginVersionTag = "-MapSaveVersion";
+	std::string authorNameTag = "-MapCreatorInfo";
+	std::string mapNameTag = "-MapNameToSave";
 	
 	void onLoad() override;
 	void OnMapLoad(std::string eventName);

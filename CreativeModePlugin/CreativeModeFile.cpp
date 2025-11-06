@@ -6,13 +6,8 @@
 CreativeModeFile::CreativeModeFile(const std::filesystem::directory_entry& mapEntry)
 {
 	this->mapName = mapEntry.path().stem().string();
-	this->mapAuthor = "Author not read";
 	this->lastModified = std::filesystem::last_write_time(mapEntry);
-
-	std::ifstream mapFile(mapEntry.path());
-	if (mapFile.is_open())
-		std::getline(mapFile, this->mapAuthor);
-	mapFile.close();
+	GetAuthorName(mapEntry);
 }
 
 std::string CreativeModeFile::GetMapString() const
@@ -23,4 +18,32 @@ std::string CreativeModeFile::GetMapString() const
 	auto tm = *std::localtime(&time);
 	ss << this->mapName << "," << this->mapAuthor << "," << std::put_time(&tm, "%Y/%m/%d");
 	return ss.str();
+}
+
+void CreativeModeFile::GetAuthorName(const std::filesystem::directory_entry& mapEntry)
+{
+	this->mapAuthor = "Author not read";
+	std::string authorTag = "-MapCreatorInfo ";
+	std::string pluginTag = "-MapSaveVersion ";
+	std::string oldTag = "MapSaveVersion";
+
+	std::ifstream mapFile(mapEntry.path());
+	if (mapFile.is_open()) {
+		bool authorFound = false;
+		std::string line;
+		std::getline(mapFile, line);
+
+		if (line.starts_with(pluginTag)) {
+			std::getline(mapFile, line);
+			this->mapAuthor = line.substr(authorTag.size());
+		}
+		else if (line.starts_with(oldTag)) {
+			std::getline(mapFile, line);
+			this->mapAuthor = line.substr(oldTag.size());
+		}
+		else {
+			this->mapAuthor = line;
+		}
+	}
+	mapFile.close();
 }
